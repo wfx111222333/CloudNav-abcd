@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Search, Plus, Upload, Moon, Sun, Menu, 
   Trash2, Edit2, Loader2, Cloud, CheckCircle2, AlertCircle,
-  Pin, Settings, Lock, CloudCog, Github, GitFork, GripVertical, Save, CheckSquare, LogOut, ExternalLink, X, EyeOff
+  Pin, Settings, Lock, CloudCog, Github, GitFork, GripVertical, Save, CheckSquare, LogOut, ExternalLink, X, EyeOff, Globe
 } from 'lucide-react';
 import {
   DndContext,
@@ -521,25 +521,16 @@ function App() {
 
     // Initial Data Fetch
     const initData = async () => {
-        // 首先检查是否需要认证
         try {
             const authRes = await fetch('/api/storage?checkAuth=true');
             if (authRes.ok) {
                 const authData = await authRes.json();
                 setRequiresAuth(authData.requiresAuth);
-                
-                // 如果需要认证但用户未登录，则不获取数据
-                if (authData.requiresAuth && !savedToken) {
-                    setIsCheckingAuth(false);
-                    setIsAuthOpen(true);
-                    return;
-                }
             }
         } catch (e) {
             console.warn("Failed to check auth requirement.", e);
         }
         
-        // 获取数据
         let hasCloudData = false;
         try {
             const res = await fetch('/api/storage', {
@@ -1710,15 +1701,21 @@ function App() {
   };
 
   const pinnedLinks = useMemo(() => {
-      const filteredPinnedLinks = links.filter(l => l.pinned && !isCategoryLocked(l.categoryId));
-      const filteredByAuth = authToken ? filteredPinnedLinks : filteredPinnedLinks.filter(l => !l.private);
+      const filteredLinks = links.filter(l => !isCategoryLocked(l.categoryId));
+      const filteredByAuth = authToken ? filteredLinks : filteredLinks.filter(l => !l.private);
       return filteredByAuth.sort((a, b) => {
-        if (a.pinnedOrder !== undefined && b.pinnedOrder !== undefined) {
-          return a.pinnedOrder - b.pinnedOrder;
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        if (a.pinned && b.pinned) {
+          if (a.pinnedOrder !== undefined && b.pinnedOrder !== undefined) {
+            return a.pinnedOrder - b.pinnedOrder;
+          }
+          if (a.pinnedOrder !== undefined) return -1;
+          if (b.pinnedOrder !== undefined) return 1;
         }
-        if (a.pinnedOrder !== undefined) return -1;
-        if (b.pinnedOrder !== undefined) return 1;
-        return a.createdAt - b.createdAt;
+        const aOrder = a.order !== undefined ? a.order : a.createdAt;
+        const bOrder = b.order !== undefined ? b.order : b.createdAt;
+        return aOrder - bOrder;
       });
   }, [links, categories, unlockedCategoryIds, authToken]);
 
@@ -2006,30 +2003,7 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-900 dark:text-slate-50">
-      {/* 认证遮罩层 - 当需要认证时显示 */}
-      {requiresAuth && !authToken && (
-        <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex items-center justify-center">
-          <div className="w-full max-w-md p-6">
-            <div className="text-center mb-8">
-              <div className="mx-auto w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
-                <Lock className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-                需要身份验证
-              </h1>
-              <p className="text-slate-600 dark:text-slate-400">
-                此导航页面设置了访问密码，请输入密码以继续访问
-              </p>
-            </div>
-            <AuthModal isOpen={true} onLogin={handleLogin} />
-          </div>
-        </div>
-      )}
-      
-      {/* 主要内容 - 只有在不需要认证或已认证时显示 */}
-      {(!requiresAuth || authToken) && (
-        <>
-          <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} />
+      <AuthModal isOpen={isAuthOpen} onLogin={handleLogin} />
       
       <CategoryAuthModal 
         isOpen={!!catAuthModalData}
@@ -2506,14 +2480,14 @@ function App() {
         {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-8">
             
-            {/* 1. Pinned Area (Custom Top Area) */}
+            {/* 1. All Links Area */}
             {pinnedLinks.length > 0 && !searchQuery && (selectedCategory === 'all') && (
                 <section>
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                            <Pin size={16} className="text-blue-500 fill-blue-500" />
+                            <Globe size={16} className="text-blue-500" />
                             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                                置顶 / 常用
+                                所有网站
                             </h2>
                             <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                                 {pinnedLinks.length}
@@ -2910,8 +2884,6 @@ function App() {
             title={qrCodeModal.title || ''}
             onClose={() => setQrCodeModal({ isOpen: false, url: '', title: '' })}
           />
-        </>
-      )}
     </div>
   );
 }
