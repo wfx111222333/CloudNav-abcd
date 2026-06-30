@@ -8,15 +8,8 @@ const DEFAULT_PASSWORD = 'cloudnav';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, x-auth-password',
-};
-
-export const onRequestOptions = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders,
-  });
 };
 
 const authenticate = (request: Request, env: Env): boolean => {
@@ -34,55 +27,56 @@ const getFileExtension = (filename: string): string => {
   return filename.toLowerCase().split('.').pop() || '';
 };
 
-export const onRequestGet = async (context: { env: Env; request: Request }) => {
+export const onRequest = async (context: { env: Env; request: Request }) => {
   const { env, request } = context;
-  
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
+
+  if (method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
+  }
+
+  if (method === 'GET' && path.startsWith('/api/transfer/file/')) {
+    const filename = path.replace('/api/transfer/file/', '');
+    
+    try {
+      const object = await env.TRANSFER_R2_BUCKET.get(filename);
+      
+      if (!object) {
+        return new Response('File not found', { status: 404 });
+      }
+      
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set('Access-Control-Allow-Origin', '*');
+      
+      return new Response(object.body, { headers });
+    } catch (err) {
+      return new Response('Failed to fetch file', { status: 500 });
+    }
+  }
+
   if (!authenticate(request, env)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
-  
+
   try {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    
-    if (path.includes('/messages')) {
+    if (method === 'GET' && path.includes('/messages')) {
       const data = await env.CLOUDNAV_KV.get('transfer_messages');
       const messages = data ? JSON.parse(data) : [];
       return new Response(JSON.stringify(messages), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
-    
-    return new Response(JSON.stringify({ error: 'Invalid path' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: 'Failed to fetch messages' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  }
-};
 
-export const onRequestPost = async (context: { env: Env; request: Request }) => {
-  const { env, request } = context;
-  
-  if (!authenticate(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  }
-  
-  try {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    
-    if (path.includes('/upload')) {
+    if (method === 'POST' && path.includes('/upload')) {
       const formData = await request.formData();
       const file = formData.get('file') as File;
       
@@ -106,7 +100,6 @@ export const onRequestPost = async (context: { env: Env; request: Request }) => 
         },
       });
       
-      const url = new URL(request.url);
       const fileUrl = `${url.origin}/api/transfer/file/${filename}`;
       const imageFlag = isImage(file.name);
       
@@ -121,8 +114,8 @@ export const onRequestPost = async (context: { env: Env; request: Request }) => 
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
-    
-    if (path.includes('/messages')) {
+
+    if (method === 'POST' && path.includes('/messages')) {
       const body = await request.json();
       const data = await env.CLOUDNAV_KV.get('transfer_messages');
       const messages = data ? JSON.parse(data) : [];
@@ -145,34 +138,8 @@ export const onRequestPost = async (context: { env: Env; request: Request }) => 
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
-    
-    return new Response(JSON.stringify({ error: 'Invalid path' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: 'Failed to process request' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  }
-};
 
-export const onRequestDelete = async (context: { env: Env; request: Request }) => {
-  const { env, request } = context;
-  
-  if (!authenticate(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  }
-  
-  try {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    
-    if (path.includes('/messages')) {
+    if (method === 'DELETE' && path.includes('/messages')) {
       const messageId = path.split('/').pop();
       
       const data = await env.CLOUDNAV_KV.get('transfer_messages');
@@ -185,8 +152,8 @@ export const onRequestDelete = async (context: { env: Env; request: Request }) =
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
-    
-    if (path.includes('/file')) {
+
+    if (method === 'DELETE' && path.includes('/file')) {
       const filename = path.split('/').pop();
       
       if (filename) {
@@ -197,42 +164,15 @@ export const onRequestDelete = async (context: { env: Env; request: Request }) =
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
-    
+
     return new Response(JSON.stringify({ error: 'Invalid path' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Failed to delete' }), {
+    return new Response(JSON.stringify({ error: 'Failed to process request' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
     });
   }
-};
-
-export const onRequest = async (context: { env: Env; request: Request }) => {
-  const { env, request } = context;
-  const url = new URL(request.url);
-  
-  if (request.method === 'GET' && url.pathname.startsWith('/api/transfer/file/')) {
-    const filename = url.pathname.replace('/api/transfer/file/', '');
-    
-    try {
-      const object = await env.TRANSFER_R2_BUCKET.get(filename);
-      
-      if (!object) {
-        return new Response('File not found', { status: 404 });
-      }
-      
-      const headers = new Headers();
-      object.writeHttpMetadata(headers);
-      headers.set('Access-Control-Allow-Origin', '*');
-      
-      return new Response(object.body, { headers });
-    } catch (err) {
-      return new Response('Failed to fetch file', { status: 500 });
-    }
-  }
-  
-  return new Response('Not found', { status: 404 });
 };
