@@ -109,9 +109,9 @@ export default function TransferModal({ isOpen, onClose, authToken }: TransferMo
         const newMessage: TransferMessage = {
           id: Date.now().toString(),
           type: result.isImage ? 'image' : 'file',
-          content: result.url,
-          fileName: result.filename,
-          fileSize: result.fileSize,
+          content: result.fileUrl,
+          fileName: result.fileName,
+          fileSize: result.message?.fileSize || 0,
           createdAt: Date.now(),
           sender: 'user',
         };

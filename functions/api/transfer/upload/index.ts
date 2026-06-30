@@ -35,6 +35,13 @@ export async function onRequestPost(context: { env: Env; request: Request }) {
     });
   }
   
+  if (!env.CLOUDNAV_R2) {
+    return new Response(JSON.stringify({ error: 'R2 bucket not configured' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -77,7 +84,7 @@ export async function onRequestPost(context: { env: Env; request: Request }) {
     
     return new Response(JSON.stringify({
       success: true,
-      fileName,
+      fileName: file.name,
       fileUrl: imageUrl,
       isImage,
       message: newMessage,
