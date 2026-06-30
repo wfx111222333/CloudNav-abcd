@@ -2511,11 +2511,11 @@ function App() {
                             return (
                                 <div key={category.id}>
                                     <div className="flex items-center gap-2 mb-3">
-                                        <Icon name={category.icon} size={18} className="text-blue-500" />
-                                        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                        <Icon name={category.icon} size={20} className="text-blue-500" />
+                                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                                             {category.name}
-                                        </h3>
-                                        <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-full">
+                                        </h2>
+                                        <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-full">
                                             {categoryLinks.length}
                                         </span>
                                         {isLocked && <Lock size={14} className="text-amber-500" />}
